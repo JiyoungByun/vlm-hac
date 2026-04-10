@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hallucination-Aware Calibration for Vision-Language Models</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;700&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+  <style>
+    :root {
+      --font-display: "Google Sans Display", "Google Sans", "Noto Sans", sans-serif;
+      --font-body: "Noto Sans", "Google Sans", sans-serif;
+      --font-mono: "JetBrains Mono", "SFMono-Regular", monospace;
+      --c-bg: #fff;
+      --c-surface: #f8f9fa;
+      --c-text: #202124;
+      --c-text-secondary: #5f6368;
+      --c-text-tertiary: #9aa0a6;
+      --c-accent: #1a73e8;
+      --c-accent-dark: #1558b0;
+      --c-link: #1a73e8;
+      --c-border: #dadce0;
+      --c-danger: #d93025;
+      --c-danger-bg: #fce8e6;
+      --c-success: #1e8e3e;
+      --c-success-bg: #e6f4ea;
+      --c-warn: #e37400;
+      --c-warn-bg: #fef7e0;
+      --c-blue-bg: #e8f0fe;
+      --content-w: 720px;
+      --wide-w: 920px;
+      --full-w: 1080px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: var(--font-body);
+      color: var(--c-text);
+      background: var(--c-bg);
+      line-height: 1.8;
+      font-size: 16px;
+    }
+
+    .container       { max-width: var(--content-w); margin: 0 auto; padding: 0 24px; }
+    .container--wide { max-width: var(--wide-w); margin: 0 auto; padding: 0 24px; }
+    .container--full { max-width: var(--full-w); margin: 0 auto; padding: 0 24px; }
+
+    /* ---- HERO ---- */
+    .hero { padding: 80px 24px 48px; text-align: center; }
+    .hero-inner { max-width: var(--wide-w); margin: 0 auto; }
+    .hero .venue {
+      display: inline-block;
+      font-size: 13px; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--c-accent); background: var(--c-blue-bg);
+      padding: 4px 14px; border-radius: 100px; margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(32px, 5vw, 52px); font-weight: 700;
+      line-height: 1.15; letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+    .hero .subtitle {
+      font-size: clamp(17px, 2.2vw, 21px);
+      color: var(--c-text-secondary); font-weight: 400;
+      line-height: 1.5; max-width: 640px;
+      margin: 0 auto 32px;
+    }
+    .author-list {
+      display: flex; justify-content: center;
+      flex-wrap: wrap; gap: 6px 28px; margin-bottom: 10px;
+    }
+    .author { font-size: 15px; font-weight: 500; }
+    .author sup { font-size: 10px; color: var(--c-accent); font-weight: 700; margin-left: 1px; }
+    .affiliations {
+      font-size: 13px; color: var(--c-text-secondary);
+      margin-bottom: 28px; line-height: 1.7;
+    }
+    .affiliations sup { font-size: 9px; color: var(--c-accent); font-weight: 700; margin-right: 2px; }
+    .btn-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-body); font-size: 14px; font-weight: 600;
+      text-decoration: none; padding: 10px 20px; border-radius: 8px;
+      transition: all .15s ease;
+    }
+    .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .btn--primary { background: var(--c-text); color: #fff; }
+    .btn--primary:hover { background: #3c4043; }
+    .btn--outline { background: #fff; color: var(--c-text); border: 1.5px solid var(--c-border); }
+    .btn--outline:hover { border-color: var(--c-text); }
+
+    /* ---- SECTIONS ---- */
+    .section { padding: 56px 0; }
+    .section--gray { background: var(--c-surface); }
+    .section h2 {
+      font-family: var(--font-display);
+      font-size: 28px; font-weight: 700;
+      letter-spacing: -0.01em; margin-bottom: 8px;
+    }
+    .section h3 {
+      font-family: var(--font-display);
+      font-size: 20px; font-weight: 700;
+      margin-top: 36px; margin-bottom: 8px;
+    }
+    .section p { margin-bottom: 16px; }
+    .section ul, .section ol { margin-bottom: 16px; padding-left: 24px; }
+    .section li { margin-bottom: 6px; }
+    .section a { color: var(--c-link); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color .15s; }
+    .section a:hover { border-bottom-color: var(--c-link); }
+
+    /* abstract */
+    .abstract { max-width: var(--content-w); margin: 0 auto; padding: 48px 24px; }
+    .abstract h2 {
+      font-family: var(--font-display);
+      font-size: 14px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--c-text-secondary); margin-bottom: 12px;
+    }
+    .abstract p { font-size: 16px; line-height: 1.85; color: var(--c-text-secondary); }
+
+    .divider { border: none; border-top: 1px solid var(--c-border); max-width: var(--content-w); margin: 0 auto; }
+
+    /* ---- FIGURE ---- */
+    .figure {
+      margin: 32px auto;
+      text-align: center;
+      max-width: var(--content-w);
+      padding: 0 24px;
+    }
+    .figure img, .figure object, .figure embed {
+      max-width: 100%;
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid var(--c-border);
+      background: #fff;
+      padding: 16px;
+    }
+    .figure figcaption {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--c-text-secondary);
+      line-height: 1.6;
+      text-align: left;
+    }
+    .figure figcaption strong { color: var(--c-text); }
+
+    /* ---- CALLOUT ---- */
+    .callout {
+      border-radius: 12px; padding: 20px 24px;
+      margin: 24px 0; font-size: 15px; line-height: 1.7;
+    }
+    .callout strong { font-weight: 600; }
+    .callout--danger  { background: var(--c-danger-bg); border-left: 4px solid var(--c-danger); }
+    .callout--warn    { background: var(--c-warn-bg);   border-left: 4px solid var(--c-warn); }
+    .callout--success { background: var(--c-success-bg); border-left: 4px solid var(--c-success); }
+    .callout--blue    { background: var(--c-blue-bg);   border-left: 4px solid var(--c-accent); }
+
+    /* ---- CHAT MOCK ---- */
+    .chat-mock {
+      background: #fff; border: 1px solid var(--c-border);
+      border-radius: 16px; overflow: hidden;
+      margin: 28px auto; max-width: 720px;
+      box-shadow: 0 1px 3px rgba(60,64,67,.15), 0 4px 8px rgba(60,64,67,.1);
+    }
+    .chat-mock .bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px; background: var(--c-surface);
+      border-bottom: 1px solid var(--c-border);
+      font-size: 12px; font-weight: 600; color: var(--c-text-secondary);
+    }
+    .chat-mock .bar .dot { width: 9px; height: 9px; border-radius: 50%; }
+    .chat-mock .bar .dot:nth-child(1) { background: #ea4335; }
+    .chat-mock .bar .dot:nth-child(2) { background: #fbbc04; }
+    .chat-mock .bar .dot:nth-child(3) { background: #34a853; }
+    .chat-mock .messages { padding: 20px; }
+    .chat-msg { display: flex; gap: 10px; margin-bottom: 16px; align-items: flex-start; }
+    .chat-msg:last-child { margin-bottom: 0; }
+    .chat-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .chat-avatar--user { background: var(--c-accent); }
+    .chat-avatar--ai   { background: #7c3aed; }
+    .chat-bubble {
+      background: var(--c-surface); padding: 10px 14px;
+      border-radius: 12px; font-size: 14px; line-height: 1.55; max-width: 100%; white-space: nowrap;
+    }
+    .chat-msg--user .chat-bubble { background: var(--c-blue-bg); }
+    .chat-xray {
+      width: 180px; aspect-ratio: 1;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      color: #6b7faa; font-size: 12px; margin-bottom: 8px;
+    }
+    .conf-badge {
+      display: inline-block; background: #0d9488; color: #fff;
+      font-size: 11px; font-weight: 700; padding: 2px 8px;
+      border-radius: 4px; margin-top: 6px;
+    }
+
+    /* ---- CARD GRID ---- */
+    .card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 24px 0; }
+    @media (max-width: 600px) { .card-grid { grid-template-columns: 1fr; } }
+    .card {
+      background: #fff; border: 1px solid var(--c-border);
+      border-radius: 12px; padding: 20px 22px;
+    }
+    .section--gray .card { background: #fff; }
+    .card .icon { font-size: 22px; margin-bottom: 6px; }
+    .card h4 { font-family: var(--font-display); font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .card p { font-size: 14px; color: var(--c-text-secondary); margin: 0; line-height: 1.6; }
+
+    /* ---- DATA TABLE ---- */
+    .table-wrap { overflow-x: auto; margin: 24px 0; }
+    table.data-table {
+      width: 100%; border-collapse: collapse; font-size: 14px;
+    }
+    table.data-table th {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--c-text-secondary); text-align: left;
+      padding: 10px 12px; border-bottom: 2px solid var(--c-border);
+      background: var(--c-surface);
+    }
+    table.data-table td {
+      padding: 10px 12px; border-bottom: 1px solid #eee; vertical-align: middle;
+    }
+    table.data-table .correct { color: var(--c-success); font-weight: 600; }
+    table.data-table .wrong   { color: var(--c-danger); font-weight: 600; }
+    table.data-table .best    { color: var(--c-accent); font-weight: 700; }
+    table.data-table .row-hl  { background: #fce8e6; }
+    table.data-table .gap-col { color: var(--c-danger); font-weight: 600; }
+    table.data-table th:not(:first-child),
+    table.data-table td:not(:first-child) { text-align: center; }
+
+    /* ---- PIPELINE ---- */
+    .pipeline {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; margin: 36px 0; flex-wrap: wrap;
+    }
+    .pipe-node {
+      text-align: center; padding: 14px 22px; border-radius: 12px;
+      font-size: 14px; font-weight: 600;
+      border: 2px solid var(--c-border); background: #fff; min-width: 120px;
+    }
+    .pipe-node--hl { border-color: var(--c-accent); background: var(--c-blue-bg); color: var(--c-accent); }
+    .pipe-node small { display: block; font-size: 12px; font-weight: 400; color: var(--c-text-secondary); margin-top: 2px; }
+    .pipe-node--hl small { color: var(--c-accent); opacity: .8; }
+    .pipe-arrow { font-size: 20px; color: var(--c-text-tertiary); padding: 0 6px; }
+
+    /* ---- FORMULA ---- */
+    .formula-card {
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-radius: 12px; padding: 24px 28px; margin: 24px 0; text-align: center;
+    }
+    .formula-card .tag {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .08em;
+      color: #fff; background: var(--c-accent);
+      padding: 2px 10px; border-radius: 4px; margin-bottom: 10px;
+    }
+    .formula-card .eq { font-size: 18px; line-height: 2; }
+
+    /* ---- STAT BAND ---- */
+    .stat-band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 32px 0; }
+    @media (max-width: 600px) { .stat-band { grid-template-columns: 1fr; } }
+    .stat {
+      text-align: center; padding: 24px 16px;
+      border-radius: 12px; background: #fff; border: 1px solid var(--c-border);
+    }
+    .section--gray .stat { background: #fff; }
+    .stat .num {
+      font-family: var(--font-display);
+      font-size: 36px; font-weight: 700;
+      color: var(--c-accent); letter-spacing: -.02em;
+    }
+    .stat .label { font-size: 13px; color: var(--c-text-secondary); margin-top: 4px; line-height: 1.4; }
+
+    /* ---- STEPS ---- */
+    .steps { list-style: none; padding: 0; margin: 24px 0; counter-reset: s; }
+    .steps li {
+      counter-increment: s; display: flex; gap: 16px;
+      align-items: flex-start; margin-bottom: 20px;
+    }
+    .steps li::before {
+      content: counter(s); flex-shrink: 0;
+      width: 32px; height: 32px; background: var(--c-accent); color: #fff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; margin-top: 2px;
+    }
+    .steps li strong { display: block; font-weight: 700; margin-bottom: 2px; }
+    .steps li p { margin: 0; font-size: 15px; color: var(--c-text-secondary); }
+
+    /* ---- BIBTEX ---- */
+    .bibtex {
+      background: var(--c-surface); border: 1px solid var(--c-border);
+      border-radius: 12px; padding: 20px 24px;
+      font-family: var(--font-mono); font-size: 13px; line-height: 1.65;
+      overflow-x: auto; white-space: pre; position: relative;
+    }
+    .bibtex-copy {
+      position: absolute; top: 12px; right: 12px;
+      background: #fff; border: 1px solid var(--c-border);
+      border-radius: 6px; padding: 4px 10px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      font-family: var(--font-body); color: var(--c-text-secondary);
+      transition: all .15s;
+    }
+    .bibtex-copy:hover { color: var(--c-text); border-color: var(--c-text); }
+
+    /* ---- FOOTER ---- */
+    footer {
+      text-align: center; padding: 48px 24px;
+      font-size: 13px; color: var(--c-text-tertiary);
+      border-top: 1px solid var(--c-border);
+    }
+    footer a { color: var(--c-link); text-decoration: none; }
+
+    @media (max-width: 480px) {
+      .hero { padding: 48px 16px 32px; }
+      .section { padding: 40px 0; }
+      .pipeline { gap: 8px; }
+      .pipe-node { min-width: 90px; padding: 10px 14px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!--  HERO                                                         -->
+<!-- ============================================================ -->
+<div class="hero">
+  <div class="hero-inner">
+    <h1>Hallucination-Aware Calibration<br>for Vision-Language Models</h1>
+    <p class="subtitle" style="white-space:nowrap">Empirical Studies on Overconfidence and Calibration in Medical VQA</p>
+
+    <div class="author-list">
+      <span class="author">Ji Young Byun<sup>1</sup></span>
+      <span class="author">Young-Jin Park<sup>2</sup></span>
+      <span class="author">Jean-Philippe Corbeil<sup>3</sup></span>
+      <span class="author">Asma Ben Abacha<sup>3</sup></span>
+    </div>
+    <div class="affiliations">
+      <sup>1</sup>Johns Hopkins University &nbsp;&nbsp;
+      <sup>2</sup>Massachusetts Institute of Technology &nbsp;&nbsp;
+      <sup>3</sup>Microsoft Healthcare &amp; Life Sciences
+    </div>
+
+    <div class="btn-row">
+      <a class="btn btn--primary" href="https://arxiv.org/abs/2604.02543">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Paper
+      </a>
+      <a class="btn btn--outline" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+        Code
+      </a>
+      <a class="btn btn--outline" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        HuggingFace
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ABSTRACT -->
+<div class="abstract">
+  <h2>TL;DR</h2>
+  <p>
+    Medical Vision-Language Models (VLMs) are systematically overconfident, and popular fixes like prompting or scaling do not resolve this. We introduce <strong>Hallucination-Aware Calibration (HAC)</strong>, which leverages vision-grounded hallucination signals to improve both calibration and ranking, reducing ECE by up to <strong>&minus;0.38 pp</strong> and improving AUROC by up to <strong>+7.3 pp</strong> on open-ended questions.
+  </p>
+</div>
+
+<hr class="divider">
+
+<!-- ============================================================ -->
+<!--  SECTION 1 — MOTIVATION                                       -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="container">
+    <h2>1. Why Calibration Matters in Medicine</h2>
+    <p>
+      In clinical decision support, knowing <em>when</em> to trust a model is just as critical as its accuracy. Modern VLMs suffer from a dangerous combination: they <strong>hallucinate</strong>, and they are <strong>highly confident</strong> about it.
+    </p>
+
+    <div class="chat-mock">
+      <div class="bar">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span style="margin-left:6px">Medical VLM &mdash; Clinical Decision Support</span>
+      </div>
+      <div class="messages">
+        <div class="chat-msg chat-msg--user">
+          <div class="chat-avatar chat-avatar--user">Dr</div>
+          <div>
+            <img src="static/xmlab449_brain_tumor.jpg" alt="Brain MRI with tumor (SLAKE xmlab449)" style="width:160px;border-radius:10px;margin-bottom:8px;display:block">
+            <div class="chat-bubble">"Does the brain MRI show any abnormalities?"</div>
+          </div>
+        </div>
+        <div class="chat-msg chat-msg--ai">
+          <div class="chat-avatar chat-avatar--ai" style="font-size:9px;text-align:center;line-height:1.1">Q3<br>8B</div>
+          <div>
+            <div class="chat-bubble">
+              "No abnormal findings are observed."
+              <span class="conf-badge" style="margin-left:8px">Confidence: 95%</span>
+            </div>
+            <div style="font-size:11px;color:var(--c-text-tertiary);margin-top:4px;padding-left:2px">Qwen3-VL-8B &middot; SLAKE benchmark &middot; <strong style="color:var(--c-danger)">Ground truth: brain edema, brain enhancing tumor</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout--danger">
+      <strong>The consequence:</strong> The issue is not merely incorrect predictions, but overconfident ones. High-confidence errors can mislead clinicians about when to trust the model, posing a critical safety risk.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!--  SECTION 2 — OVERCONFIDENCE IS PERVASIVE (with Figure 1)      -->
+<!-- ============================================================ -->
+<div class="section section--gray">
+  <div class="container">
+    <h2>2. Overconfidence is Pervasive Across Models</h2>
+    <p>
+      We evaluate three open-source VLM families&mdash;Qwen3-VL, InternVL3, and LLaVA-NeXT&mdash;spanning 2B to 38B parameters on three medical VQA benchmarks (VQA-RAD, SLAKE, VQA-Med).
+    </p>
+  </div>
+
+  <!-- Figure 1: Confidence vs Accuracy scatter -->
+  <figure class="figure">
+    <img src="static/fig_confidence_vs_accuracy.svg"
+         alt="Confidence vs. accuracy scatter plot showing all models fall below the diagonal, confirming systematic overconfidence">
+    <figcaption>
+      <strong>Figure 1.</strong> Mean confidence vs. accuracy for different question types on medical VQA benchmarks. All models fall below the diagonal (grey region), indicating consistent <strong>overconfidence</strong>. The gap is larger for open-ended questions.
+    </figcaption>
+  </figure>
+
+  <div class="container">
+    <!-- Table 1: Scaling analysis -->
+    <h3>Scaling Does Not Improve Calibration</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Model</th><th>Accuracy</th><th>Confidence</th><th>Gap</th><th>ECE</th><th>ACE</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Qwen3-VL-2B</td><td>.562</td><td>.860</td><td class="gap-col">.298</td><td>.316</td><td>.305</td></tr>
+          <tr><td>Qwen3-VL-8B</td><td>.605</td><td>.943</td><td class="gap-col">.338</td><td>.340</td><td>.338</td></tr>
+          <tr><td>Qwen3-VL-32B</td><td>.651</td><td>.954</td><td class="gap-col">.304</td><td>.307</td><td>.303</td></tr>
+          <tr style="border-top:2px solid var(--c-border)"><td>InternVL3-2B</td><td>.554</td><td>.774</td><td class="gap-col">.220</td><td>.227</td><td>.231</td></tr>
+          <tr><td>InternVL3-8B</td><td>.618</td><td>.811</td><td class="gap-col">.192</td><td>.204</td><td>.202</td></tr>
+          <tr><td>InternVL3-38B</td><td>.549</td><td>.767</td><td class="gap-col">.218</td><td>.231</td><td>.237</td></tr>
+          <tr style="border-top:2px solid var(--c-border)"><td>LLaVA-NeXT-7B</td><td>.434</td><td>.640</td><td class="gap-col">.206</td><td>.213</td><td>.226</td></tr>
+          <tr><td>LLaVA-NeXT-34B</td><td>.472</td><td>.751</td><td class="gap-col">.279</td><td>.285</td><td>.293</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:14px;color:var(--c-text-secondary)">
+      <strong>Table 1.</strong> Accuracy, confidence, overconfidence gap, ECE, and ACE on pooled medical VQA benchmarks. While larger models achieve higher accuracy, the overconfidence gap (red) remains uniformly high regardless of scale.
+    </p>
+    <h3>No Prompting Strategy Consistently Improves Calibration</h3>
+    <p>
+      Our study across 8+ confidence estimation strategies finds that no prompting strategy consistently improves calibration. CoT offers little to no benefit, and most verbalized variants fail to improve over vanilla prompting, often worsening calibration.
+    </p>
+  </div>
+
+  <!-- Figure 2: Prompting strategies ACE comparison -->
+  <figure class="figure">
+    <img src="static/fig_prompting_ace.svg"
+         alt="Bar chart comparing ACE across prompting strategies, showing no strategy consistently improves calibration">
+    <figcaption>
+      <strong>Figure 2.</strong> Adaptive Calibration Error (ACE) across sampling-based and verbalized confidence extraction methods and their prompting variants, averaged across 7/8B models on pooled benchmarks. No prompting strategy consistently improves calibration.
+    </figcaption>
+  </figure>
+
+  <div class="container">
+    <div class="callout callout--warn">
+      <strong>Key finding:</strong> Overconfidence is a systematic property, not an artifact of any particular setup. Neither scaling nor prompting resolves it.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!--  SECTION 3 — POST-HOC CALIBRATION (with Figure 3)             -->
+<!-- ============================================================ -->
+<div class="section section--gray">
+  <div class="container">
+    <h2>3. Post-Hoc Calibration Works&mdash;But Has a Ceiling</h2>
+    <p>
+      Standard methods like Platt Scaling and Isotonic Regression dramatically reduce calibration error. But they have a <strong>fundamental structural limitation</strong>.
+    </p>
+  </div>
+
+  <!-- Figure 3: Post-hoc bars -->
+  <figure class="figure">
+    <img src="static/fig_posthoc_bars.svg"
+         alt="Bar chart showing ECE and ACE before and after Platt scaling for all models">
+    <figcaption>
+      <strong>Figure 3.</strong> Calibration errors (ECE and ACE) before and after post-hoc calibration (Platt scaling) for sampling-based and verbalized confidence on closed- and open-ended questions. Post-hoc calibration consistently and substantially reduces calibration error.
+    </figcaption>
+  </figure>
+
+  <div class="container">
+    <h3>The Monotonicity Trap</h3>
+    <p>
+      These methods apply <strong>monotonic</strong> transformations. They compress or stretch scores but <em>cannot change the rank order</em> of predictions.
+    </p>
+
+    <p style="margin-bottom: 4px; font-size: 12px; color: var(--c-text-tertiary);">
+    </p>
+
+    <div style="display: flex; align-items: flex-start; justify-content: center; gap: 0; margin: 20px 0; font-size: 13px;">
+
+      <!-- Before calibration -->
+      <div style="flex: 1; min-width: 0; padding: 0 12px;">
+        <div style="font-weight: 600; color: var(--c-text); margin-bottom: 10px; text-align: center;">Before Calibration</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">1.00</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.95</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct</div>
+          </div>
+          <!-- Threshold -->
+          <div style="display: flex; align-items: center; gap: 8px; margin: 3px 0;">
+            <span style="width: 32px; text-align: right; color: var(--c-accent); font-size: 11px; font-weight: 700;">.95</span>
+            <div style="flex: 1; border-top: 2.5px dashed var(--c-accent); position: relative;">
+              <span style="position: absolute; top: -9px; right: 0; font-size: 10px; font-weight: 600; color: var(--c-accent); background: var(--c-surface); padding: 0 4px;">optimal threshold</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.95</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.95</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.90</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.90</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.85</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.85</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong</div>
+          </div>
+        </div>
+        <div style="text-align: left; margin-top: 6px; font-size: 11px; color: var(--c-text-tertiary); padding-left: 8px;">confidence &darr;</div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 80px;">
+        <div style="font-size: 10px; font-weight: 600; color: var(--c-text-secondary); margin-bottom: 2px;">Platt</div>
+        <div style="font-size: 28px; color: var(--c-text-tertiary); font-weight: 700;">&rarr;</div>
+      </div>
+
+      <!-- After calibration -->
+      <div style="flex: 1; min-width: 0; padding: 0 12px;">
+        <div style="font-weight: 600; color: var(--c-text); margin-bottom: 10px; text-align: center;">After Calibration</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.78</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.56</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct</div>
+          </div>
+          <!-- Threshold -->
+          <div style="display: flex; align-items: center; gap: 8px; margin: 3px 0;">
+            <span style="width: 32px; text-align: right; color: var(--c-accent); font-size: 11px; font-weight: 700;">.56</span>
+            <div style="flex: 1; border-top: 2.5px dashed var(--c-accent); position: relative;">
+              <span style="position: absolute; top: -9px; right: 0; font-size: 10px; font-weight: 600; color: var(--c-accent); background: var(--c-surface); padding: 0 4px;">optimal threshold</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.56</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.56</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.31</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.31</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.14</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.14</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong</div>
+          </div>
+        </div>
+        <div style="text-align: left; margin-top: 6px; font-size: 11px; color: var(--c-text-tertiary); padding-left: 8px;">confidence &darr;</div>
+      </div>
+
+    </div>
+    <p style="font-size: 13px; color: var(--c-text-secondary); text-align: center; margin-top: 0;">
+      Predictions from InternVL3-8B on VQA-RAD (open-ended, verbalized confidence). Calibration rescales the overconfident scores, but the <strong>same wrong predictions remain above the threshold</strong>. AUROC stays at .614.
+    </p>
+
+    <div class="callout callout--warn">
+      <strong>The core problem:</strong> A confidently wrong prediction will <em>always</em> remain ranked above a less confident but correct one. Standard calibration fixes the <em>scale</em> but leaves <em>discriminative quality</em> (AUROC) frozen. To break this ceiling, we need a signal orthogonal to raw confidence.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!--  SECTION 5 — HAC METHOD                                       -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="container">
+    <h2>4. Hallucination-Aware Calibration (HAC)</h2>
+    <p>
+      We found that <strong>vision-grounded hallucination scores</strong> provide the orthogonal signal we need. For example, <a href="https://papers.miccai.org/miccai-2025/paper/0083_paper.pdf" style="color: var(--c-link);">VASE</a> (Liao et al., MICCAI 2025) detects hallucination by contrasting output distributions from the original image versus a weakly perturbed version&mdash;a higher score indicates the prediction is not grounded in the visual input.
+    </p>
+  </div>
+
+  <div class="container--wide">
+    <div class="pipeline">
+      <div class="pipe-node">Raw Confidence<small>c</small></div>
+      <div class="pipe-arrow">+</div>
+      <div class="pipe-node pipe-node--hl">Hallucination Score<small>VASE &middot; h</small></div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-node pipe-node--hl">HAC Score<small>Calibrated &amp; Reranked</small></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="formula-card">
+      <div><span class="tag">HAC-Platt</span></div>
+      <div class="eq">$s(c, h) = \sigma(a \cdot c \;+\; b \cdot h \;+\; d)$</div>
+      <div style="font-size:13px;color:var(--c-text-secondary);margin-top:4px">where $a \geq 0$ (confidence &uarr;) and $b \leq 0$ (hallucination &darr;)</div>
+      <div style="margin-top:16px"><span class="tag">HAC-Gate</span></div>
+      <div class="eq">$s(c, h) = c \cdot \sigma(-\alpha \cdot h + \beta)$</div>
+      <div style="font-size:13px;color:var(--c-text-secondary);margin-top:4px">Sigmoid gate attenuates confidence when hallucination is high</div>
+    </div>
+
+    <p style="margin-top: 24px; margin-bottom: 4px; font-size: 12px; color: var(--c-text-tertiary);">
+    </p>
+
+    <div style="display: flex; align-items: flex-start; justify-content: center; gap: 0; margin: 20px 0; font-size: 13px;">
+
+      <!-- Before: raw confidence (same as Monotonicity Trap) -->
+      <div style="flex: 1; min-width: 0; padding: 0 12px;">
+        <div style="font-weight: 600; color: var(--c-text); margin-bottom: 10px; text-align: center;">Raw Confidence</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">1.00</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong &nbsp;<span style="opacity:.7">vase=0.7</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.95</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct &nbsp;<span style="opacity:.7">vase=0.0</span></div>
+          </div>
+          <!-- Threshold -->
+          <div style="display: flex; align-items: center; gap: 8px; margin: 3px 0;">
+            <span style="width: 32px; text-align: right; color: var(--c-accent); font-size: 11px; font-weight: 700;">.95</span>
+            <div style="flex: 1; border-top: 2.5px dashed var(--c-accent); position: relative;">
+              <span style="position: absolute; top: -9px; right: 0; font-size: 10px; font-weight: 600; color: var(--c-accent); background: #fff; padding: 0 4px;">optimal threshold</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.95</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct &nbsp;<span style="opacity:.7">vase=0.5</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.95</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong &nbsp;<span style="opacity:.7">vase=2.2</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.90</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct &nbsp;<span style="opacity:.7">vase=2.6</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.90</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong &nbsp;<span style="opacity:.7">vase=2.0</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.85</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct &nbsp;<span style="opacity:.7">vase=1.1</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.85</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong &nbsp;<span style="opacity:.7">vase=2.4</span></div>
+          </div>
+        </div>
+        <div style="text-align: left; margin-top: 6px; font-size: 11px; color: var(--c-text-tertiary); padding-left: 8px;">confidence &darr;</div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 80px;">
+        <div style="font-size: 10px; font-weight: 600; color: var(--c-text-secondary); margin-bottom: 2px;">HAC</div>
+        <div style="font-size: 28px; color: var(--c-accent); font-weight: 700;">&rarr;</div>
+      </div>
+
+      <!-- After: HAC reranked -->
+      <div style="flex: 1; min-width: 0; padding: 0 12px;">
+        <div style="font-weight: 600; color: var(--c-text); margin-bottom: 10px; text-align: center;">After HAC</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.79</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong &nbsp;<span style="opacity:.7">was 1.00</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.77</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct &nbsp;<span style="opacity:.7">was .95</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.68</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct &nbsp;<span style="opacity:.7">was .95</span></div>
+          </div>
+          <!-- Threshold -->
+          <div style="display: flex; align-items: center; gap: 8px; margin: 3px 0;">
+            <span style="width: 32px; text-align: right; color: var(--c-accent); font-size: 11px; font-weight: 700;">.43</span>
+            <div style="flex: 1; border-top: 2.5px dashed var(--c-accent); position: relative;">
+              <span style="position: absolute; top: -9px; right: 0; font-size: 10px; font-weight: 600; color: var(--c-accent); background: #fff; padding: 0 4px;">optimal threshold</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.36</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong &nbsp;<span style="opacity:.7">&darr; was .95</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.24</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct &nbsp;<span style="opacity:.7">was .85</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.23</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong &nbsp;<span style="opacity:.7">&darr; was .90</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.16</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-success); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10003; correct &nbsp;<span style="opacity:.7">was .90</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 32px; text-align: right; color: var(--c-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;">.10</span>
+            <div style="flex: 1; height: 24px; border-radius: 4px; background: var(--c-danger); opacity: 0.85; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 11px; font-weight: 500;">&#10007; wrong &nbsp;<span style="opacity:.7">&darr; was .85</span></div>
+          </div>
+        </div>
+        <div style="text-align: left; margin-top: 6px; font-size: 11px; color: var(--c-text-tertiary); padding-left: 8px;">HAC score &darr;</div>
+      </div>
+
+    </div>
+    <p style="font-size: 13px; color: var(--c-text-secondary); text-align: center; margin-top: 0;">
+      Same predictions from InternVL3-8B on VQA-RAD (open-ended, verbalized confidence). HAC uses hallucination score to penalize hallucinated predictions, breaking the monotonicity trap. AUROC improves from .614 to .734.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!--  SECTION 6 — RESULTS (with Figures 4&5 + Tables)              -->
+<!-- ============================================================ -->
+<div class="section section--gray">
+  <div class="container">
+    <h2>5. Results</h2>
+
+    <div class="stat-band">
+      <div class="stat">
+        <div class="num">+5.3 pp</div>
+        <div class="label">Avg. AUROC improvement<br>across all models</div>
+      </div>
+      <div class="stat">
+        <div class="num">+7.3 pp</div>
+        <div class="label">AUROC gain on<br>open-ended questions</div>
+      </div>
+      <div class="stat">
+        <div class="num">+10.1 pp</div>
+        <div class="label">AUROC gain, verbalized<br>confidence (open)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Figure 4: HAC AUROC bar chart -->
+  <figure class="figure">
+    <img src="static/fig_hac_auroc_bar.svg"
+         alt="Bar chart comparing AUROC across calibration methods showing HAC improves AUROC while Platt scaling preserves it">
+    <figcaption>
+      <strong>Figure 4.</strong> AUROC comparison across post-hoc calibration methods on pooled datasets. Platt scaling preserves the same AUROC due to its monotonic transformation. HAC improves AUROC by incorporating hallucination signals, with larger gains on open-ended questions.
+    </figcaption>
+  </figure>
+
+  <div class="container">
+    <h3>AUROC: Discriminative Quality (Open-Ended)</h3>
+    <p>Platt scaling preserves AUROC by definition. <strong>HAC consistently improves it.</strong></p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th colspan="2">Uncalibrated</th>
+            <th colspan="2">Platt Scaling</th>
+            <th colspan="2">HAC-Platt</th>
+            <th colspan="2">HAC-Gate</th>
+          </tr>
+          <tr>
+            <th>Model</th>
+            <th>Samp.</th><th>Verb.</th>
+            <th>Samp.</th><th>Verb.</th>
+            <th>Samp.</th><th>Verb.</th>
+            <th>Samp.</th><th>Verb.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Qwen3-VL-8B</td>
+            <td>0.643</td><td>0.710</td>
+            <td>0.643</td><td>0.710</td>
+            <td class="best">0.750</td><td class="best">0.771</td>
+            <td class="best">0.750</td><td>0.743</td>
+          </tr>
+          <tr>
+            <td>InternVL3-8B</td>
+            <td>0.764</td><td>0.614</td>
+            <td>0.764</td><td>0.614</td>
+            <td>0.789</td><td class="best">0.742</td>
+            <td class="best">0.793</td><td>0.736</td>
+          </tr>
+          <tr>
+            <td>LLaVA-NeXT-7B</td>
+            <td>0.706</td><td>0.603</td>
+            <td>0.706</td><td>0.603</td>
+            <td class="best">0.725</td><td class="best">0.703</td>
+            <td>0.721</td><td>0.702</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:14px;color:var(--c-text-secondary)">
+      <strong>Table 2.</strong> AUROC ($\uparrow$) comparison on open-ended questions (pooled datasets). HAC improves AUROC across all models while Platt scaling leaves it unchanged.
+    </p>
+
+    <h3>ACE: Calibration Error (Open-Ended, lower is better)</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th colspan="2">Uncalibrated</th>
+            <th colspan="2">Platt Scaling</th>
+            <th colspan="2">HAC-Platt</th>
+            <th colspan="2">HAC-Gate</th>
+          </tr>
+          <tr>
+            <th>Model</th>
+            <th>Samp.</th><th>Verb.</th>
+            <th>Samp.</th><th>Verb.</th>
+            <th>Samp.</th><th>Verb.</th>
+            <th>Samp.</th><th>Verb.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Qwen3-VL-8B</td>
+            <td>0.400</td><td>0.363</td>
+            <td>0.098</td><td>0.095</td>
+            <td class="best">0.086</td><td class="best">0.075</td>
+            <td class="best">0.086</td><td class="best">0.075</td>
+          </tr>
+          <tr>
+            <td>InternVL3-8B</td>
+            <td>0.228</td><td>0.352</td>
+            <td class="best">0.094</td><td>0.102</td>
+            <td class="best">0.094</td><td class="best">0.087</td>
+            <td>0.097</td><td>0.091</td>
+          </tr>
+          <tr>
+            <td>LLaVA-NeXT-7B</td>
+            <td>0.256</td><td>0.539</td>
+            <td>0.082</td><td>0.104</td>
+            <td>0.096</td><td class="best">0.083</td>
+            <td class="best">0.077</td><td>0.084</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:14px;color:var(--c-text-secondary)">
+      <strong>Table 3.</strong> ACE ($\downarrow$) comparison on open-ended questions (pooled datasets). HAC achieves calibration gains comparable to or better than standard post-hoc methods.
+    </p>
+
+    <div class="callout callout--success">
+      <strong>Bottom line:</strong> HAC is the only method that improves <em>both</em> calibration error and discriminative quality. Standard post-hoc methods reduce error but leave AUROC frozen. HAC breaks this ceiling by leveraging hallucination signals to rerank predictions.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!--  CITATION                                                      -->
+<!-- ============================================================ -->
+<div class="section" id="citation">
+  <div class="container">
+    <h2>Citation</h2>
+    <div class="bibtex">
+      <button class="bibtex-copy" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
+<code>@article{byun2026overconfidence,
+  title     = {Overconfidence and Calibration in Medical VQA:
+               Empirical Findings and Hallucination-Aware Mitigation},
+  author    = {Byun, Ji Young and Park, Young-Jin and
+               Corbeil, Jean-Philippe and Ben Abacha, Asma},
+  journal   = {arXiv preprint arXiv:2604.02543},
+  year      = {2026}
+}</code>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Johns Hopkins University &middot; MIT &middot; Microsoft Healthcare &amp; Life Sciences</p>
+  <p style="margin-top:8px">Questions? Contact <a href="mailto:jbyun13@jhu.edu">jbyun13@jhu.edu</a></p>
+</footer>
+
+</body>
+</html>
