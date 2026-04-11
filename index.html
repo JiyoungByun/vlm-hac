@@ -345,15 +345,24 @@
     <p class="subtitle" style="white-space:nowrap">Empirical Studies on Overconfidence and Calibration in Medical VQA</p>
 
     <div class="author-list">
-      <span class="author">Ji Young Byun<sup>1</sup></span>
+      <span class="author"><a href="https://www.linkedin.com/in/jiyoung-byun/" style="color: inherit; text-decoration: none; border-bottom: 1px solid var(--c-border);">Ji Young Byun</a><sup>1</sup></span>
       <span class="author">Young-Jin Park<sup>2</sup></span>
       <span class="author">Jean-Philippe Corbeil<sup>3</sup></span>
       <span class="author">Asma Ben Abacha<sup>3</sup></span>
     </div>
-    <div class="affiliations">
-      <sup>1</sup>Johns Hopkins University &nbsp;&nbsp;
-      <sup>2</sup>Massachusetts Institute of Technology &nbsp;&nbsp;
-      <sup>3</sup>Microsoft Healthcare &amp; Life Sciences
+    <div class="affiliations" style="display: flex; justify-content: center; align-items: center; gap: 36px; flex-wrap: wrap;">
+      <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <sup style="font-size: 10px;">1</sup>
+        <img src="static/jhu.jpg" alt="Johns Hopkins University" style="height: 28px; width: auto;">
+      </span>
+      <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <sup style="font-size: 10px;">2</sup>
+        <img src="static/mit.svg" alt="MIT" style="height: 22px; width: auto;">
+      </span>
+      <span style="display: inline-flex; align-items: center; gap: 6px;">
+        <sup style="font-size: 10px;">3</sup>
+        <img src="static/microsoft.png" alt="Microsoft" style="height: 22px; width: auto;">
+      </span>
     </div>
 
     <div class="btn-row">
@@ -810,7 +819,7 @@
   </figure>
 
   <div class="container">
-    <h3>AUROC: Discriminative Quality (Open-Ended)</h3>
+    <h3>AUROC: Discriminative Quality (higher is better)</h3>
     <p>Platt scaling preserves AUROC by definition. <strong>HAC consistently improves it.</strong></p>
     <div class="table-wrap">
       <table class="data-table">
@@ -859,7 +868,7 @@
       <strong>Table 2.</strong> AUROC ($\uparrow$) comparison on open-ended questions (pooled datasets). HAC improves AUROC across all models while Platt scaling leaves it unchanged.
     </p>
 
-    <h3>ACE: Calibration Error (Open-Ended, lower is better)</h3>
+    <h3>ACE: Calibration Error (lower is better)</h3>
     <div class="table-wrap">
       <table class="data-table">
         <thead>
